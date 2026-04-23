@@ -16,11 +16,14 @@ logger = logging.getLogger("Engine")
 class AgentEngine:
     """AgentEngine 是微型 OS 的核心驱动"""
 
-    def __init__(self, provider, registry, work_dir: str):
+    def __init__(self, provider, registry, work_dir: str, enable_thinking: bool):
         self.provider = provider
         self.registry = registry
         # WorkDir (工作区): Agent 必须有一个明确的物理边界
         self.work_dir = work_dir
+
+        # 引入thinking开关
+        self.enable_thinking = enable_thinking
 
     def run(self, user_prompt: str) -> Optional[Exception]:
         """启动 Agent 的生命周期"""
@@ -50,6 +53,17 @@ class AgentEngine:
 
             # 向大模型发起推理请求 (包含 Reasoning)
             logger.info("[Engine] 正在思考 (Reasoning)...")
+
+            # 如果启用了思考阶段，先让模型进行一次纯文本的推理，看看它的想法是什么
+            if self.enable_thinking:
+                response = self.provider.generate(context_history, None)
+                if  response:
+                    print(f"💭 思考中: {response.content}")
+                    context_history.append(response)
+                else:
+                    logger.error("思考阶段发生错误，无法继续执行。")
+                    return Exception("思考阶段发生错误，无法继续执行。")
+            # 开启阶段2行动
             try:
                 # 在 Python 中，ctx (context) 通常不作为强制首参，除非是异步协程
                 response_msg = self.provider.generate(context_history, available_tools)

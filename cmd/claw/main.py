@@ -14,6 +14,14 @@ class MockLLMProvider:
     def __init__(self):
         self.counter = 0
     def generate(self, messages, tool_definitions):
+
+        # 如果工具列表的值为空，那么开始的是第一阶段Phase1 Thinking阶段内容
+        if not tool_definitions:
+            return Message(
+                role=Role.ASSISTANT,
+                content="【推理中】目标是检查文件，我不能盲猜，我需要调用bash工具执行ls的命令"
+            )
+
         self.counter += 1
         if self.counter == 1:
             return Message(
@@ -33,7 +41,7 @@ class MockToolRegistry:
     """模拟工具调用"""
 
     def get_available_tools(self):
-        return []
+        return ["bash", "ls", "-la"]
 
     def execute(self, tool_call):
         """直接返回一段伪造的终端输出"""
@@ -57,7 +65,8 @@ def main():
     agent_engine = AgentEngine(
         provider=MockLLMProvider(),
         registry=MockToolRegistry(),
-        work_dir=os.getcwd()
+        work_dir=os.getcwd(),
+        enable_thinking=True
     )
 
     try:
