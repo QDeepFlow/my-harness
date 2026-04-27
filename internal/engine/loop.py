@@ -51,7 +51,7 @@ class AgentEngine:
             logger.info("[Engine] 正在思考 (Reasoning)...")
 
             # 如果启用了思考阶段，先让模型进行一次纯文本的推理，看看它的想法是什么
-            if self.enable_thinking:
+            if self.enable_thinking and turn_count == 1:  # 仅在第一轮开启思考阶段，后续轮次直接进入行动阶段
                 response = self.provider.generate(context_history, None, reasoning_history)
                 if response:
                     print(f"💭 思考中: {response.content}")

@@ -1,9 +1,12 @@
 import logging
 import os
 import sys
+from idlelib.window import registry
 from pathlib import Path
 
 from dotenv import load_dotenv
+from internal.tools.InMemoryRegistry import InMemoryRegistry
+from internal.tools.get_weather import GetWeatherTool
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -56,9 +59,14 @@ def main():
     else:
         provider = MockProvider()
 
+    tool_registry = InMemoryRegistry(
+        tools=[
+            GetWeatherTool()
+        ]
+    )
     agent_engine = AgentEngine(
         provider=provider,
-        registry=MockToolRegistry(),
+        registry=tool_registry,
         work_dir=os.getcwd(),
         enable_thinking=True
     )
