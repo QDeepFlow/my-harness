@@ -105,8 +105,38 @@ class OpenAIProvider:
                 )
         return open_ai_tools
 
-    def generate(self, messages: List[Message], available_tools: Optional[List[ToolDefinition]]) -> Message:
+    def _scratchpad_to_openai(self, scratchpad: Optional[List[str]]) -> Optional[dict[str, Any]]:
+        if not scratchpad:
+            return None
+
+        content = "\n\n".join(
+            f"[Reasoning note {index}] {note}"
+            for index, note in enumerate(scratchpad, start=1)
+            if note
+        )
+        if not content:
+            return None
+
+        return {
+            "role": "system",
+            "content": (
+                "Internal reasoning scratchpad. These notes are for planning only. "
+                "They are not final answers and should not be treated as already-sent assistant messages.\n\n"
+                f"{content}"
+            ),
+        }
+
+    def generate(
+        self,
+        messages: List[Message],
+        available_tools: Optional[List[ToolDefinition]],
+        scratchpad: Optional[List[str]] = None,
+    ) -> Message:
         open_ai_msg = [self._message_to_openai(message) for message in messages]
+        scratchpad_msg = self._scratchpad_to_openai(scratchpad)
+        if scratchpad_msg:
+            insert_index = 1 if open_ai_msg and open_ai_msg[0]["role"] == "system" else 0
+            open_ai_msg.insert(insert_index, scratchpad_msg)
         kwargs = {
             "model": self.model,
             "messages": open_ai_msg,

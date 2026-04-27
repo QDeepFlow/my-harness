@@ -34,6 +34,7 @@ class AgentEngine:
             Message(role=Role.SYSTEM, content="You are python-tiny-claw, an expert coding assistant. You have full access to tools in the workspace."),
             Message(role=Role.USER, content=user_prompt),
         ]
+        reasoning_history: List[str] = []
 
         turn_count = 0
 
@@ -50,14 +51,11 @@ class AgentEngine:
 
             # 如果启用了思考阶段，先让模型进行一次纯文本的推理，看看它的想法是什么
             if self.enable_thinking:
-                response = self.provider.generate(context_history, None)
-                if  response:
+                response = self.provider.generate(context_history, None, reasoning_history)
+                if response:
                     print(f"💭 思考中: {response.content}")
-                    context_history.append(response)
-
-                    print("===="*10)
-                    print(f"思考阶段的模型响应: {response}")
-                    print("===="*10)
+                    if response.content:
+                        reasoning_history.append(response.content)
 
                 else:
                     logger.error("思考阶段发生错误，无法继续执行。")
@@ -65,7 +63,7 @@ class AgentEngine:
             # 开启阶段2行动
             try:
                 # 在 Python 中，ctx (context) 通常不作为强制首参，除非是异步协程
-                response_msg = self.provider.generate(context_history, available_tools)
+                response_msg = self.provider.generate(context_history, available_tools, reasoning_history)
             except Exception as e:
                 return Exception(f"模型生成失败: {str(e)}")
 
