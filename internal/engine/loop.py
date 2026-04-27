@@ -1,6 +1,7 @@
 import logging
 from typing import List, Optional
 
+from internal.provider.base import LLMProvider
 from internal.schema.message import Message, Role
 
 # 假设之前的代码分别保存在对应的模块中
@@ -16,7 +17,7 @@ logger = logging.getLogger("Engine")
 class AgentEngine:
     """AgentEngine 是微型 OS 的核心驱动"""
 
-    def __init__(self, provider, registry, work_dir: str, enable_thinking: bool):
+    def __init__(self, provider: LLMProvider, registry, work_dir: str, enable_thinking: bool):
         self.provider = provider
         self.registry = registry
         # WorkDir (工作区): Agent 必须有一个明确的物理边界

@@ -11,6 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from internal.engine.loop import AgentEngine
 from internal.logger import setup_logging
+from internal.provider.MockProvider import MockProvider
 from internal.provider.OpenAIProvider import OpenAIProvider
 from internal.schema.message import ToolDefinition, ToolResult
 
@@ -48,16 +49,15 @@ class MockToolRegistry:
 
 def main():
     print("🚀Hello from my-harness!")
-    
-    # 1.首先是初始化大模型
 
-    # 2， 初始化Tool Registry
+    provider_name = os.getenv("PROVIDER", "mock").lower()
+    if provider_name == "openai":
+        provider = OpenAIProvider(os.getenv("MODEL_NAME", "deepseek-chat"))
+    else:
+        provider = MockProvider()
 
-    # 3. 初始化上下文管理器
-
-    # 4.组装并启动核心的Engine
     agent_engine = AgentEngine(
-        provider=OpenAIProvider("deepseek-chat"),
+        provider=provider,
         registry=MockToolRegistry(),
         work_dir=os.getcwd(),
         enable_thinking=True

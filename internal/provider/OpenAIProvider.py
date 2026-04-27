@@ -38,12 +38,13 @@ from typing import Any, List, Optional
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from internal.provider.base import LLMProvider
 from internal.schema.message import Message, Role, ToolCall, ToolDefinition
 
 load_dotenv(override=True)
 
 
-class OpenAIProvider:
+class OpenAIProvider(LLMProvider):
 
     def __init__(self, model: str):
         api_key = os.getenv("OPENAI_API_KEY")
