@@ -1,33 +1,42 @@
-
 import logging
 import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from internal.engine.loop import AgentEngine
 from internal.logger import setup_logging
 from internal.provider.OpenAIProvider import OpenAIProvider
-from internal.schema.message import Message, Role, ToolResult, ToolDefinition
+from internal.schema.message import ToolDefinition, ToolResult
 
 setup_logging()
-
+load_dotenv()
 
 class MockToolRegistry:
     """模拟工具调用"""
 
     def get_available_tools(self) -> list[ToolDefinition]:
-        return [{
-            "name": "get_weather",
-            "description": "获取指定城市的天气信息",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "city": {
-                        "type": "string",
-                        "description": "要查询天气的城市名称"
-                    }
+        return [
+            ToolDefinition(
+                name="get_weather",
+                description="获取指定城市的天气信息",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "city": {
+                            "type": "string",
+                            "description": "要查询天气的城市名称"
+                        }
+                    },
+                    "required": ["city"]
                 },
-                "required": ["city"]
-            }
-        }]
+            )
+        ]
 
     def execute(self, tool_call):
         logging.info("Mock tool called")

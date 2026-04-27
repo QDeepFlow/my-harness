@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from internal.schema.message import Message
+from internal.schema.message import Message, Role
 
 # 假设之前的代码分别保存在对应的模块中
 # from provider import LLMProvider
@@ -30,15 +30,9 @@ class AgentEngine:
         logger.info(f"[Engine] 引擎启动，锁定工作区: {self.work_dir}")
 
         # 1. 初始化会话的 Context (上下文内存)
-        context_history: List['Message'] = [
-            {
-                "role": "system",
-                "content": "You are python-tiny-claw, an expert coding assistant. You have full access to tools in the workspace."
-            },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
+        context_history: List[Message] = [
+            Message(role=Role.SYSTEM, content="You are python-tiny-claw, an expert coding assistant. You have full access to tools in the workspace."),
+            Message(role=Role.USER, content=user_prompt),
         ]
 
         turn_count = 0
@@ -60,6 +54,11 @@ class AgentEngine:
                 if  response:
                     print(f"💭 思考中: {response.content}")
                     context_history.append(response)
+
+                    print("===="*10)
+                    print(f"思考阶段的模型响应: {response}")
+                    print("===="*10)
+
                 else:
                     logger.error("思考阶段发生错误，无法继续执行。")
                     return Exception("思考阶段发生错误，无法继续执行。")
@@ -99,11 +98,11 @@ class AgentEngine:
 
                 # 将工具执行的观察结果 (Observation) 封装为 User Message 追加到上下文中
                 # 注意：ToolCallID 必须携带！这是维系大模型推理链条的关键
-                observation_msg = {
-                    "role": "user",
-                    "content": result.output,
-                    "tool_call_id": tool_call.id
-                }
+                observation_msg = Message(
+                    role=Role.TOOL,
+                    content=result.output,
+                    tool_call_id=tool_call.id,
+                )
                 context_history.append(observation_msg)
 
             # 循环回到开头，模型将带着新加入的 Observation 继续它的下一轮思考...

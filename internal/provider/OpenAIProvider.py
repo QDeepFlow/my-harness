@@ -31,101 +31,123 @@
 我们在上一步中操作了一个非常简单的 MockLLMProvider 来模拟大模型的回复，但在实际应用中，我们需要一个真正能够与 OpenAI API 进行交互的 Provider 来替换它。
 我们采用是在schema中的定义的Message对象作为我们和大模型交互的统一标准，OpenAIProvider的核心职责就是将这个Message对象转换成OpenAI API能够理解的格式，并且将OpenAI API的回复转换回Message对象。
 """
+import json
 import os
-from ast import arguments
-from typing import List, Dict, Any
+from typing import Any, List, Optional
 
-from openai import api_key, OpenAI
+from dotenv import load_dotenv
+from openai import OpenAI
 
-from internal.schema.message import Message, Role
+from internal.schema.message import Message, Role, ToolCall, ToolDefinition
+
+load_dotenv(override=True)
 
 
 class OpenAIProvider:
 
     def __init__(self, model: str):
         api_key = os.getenv("OPENAI_API_KEY")
-        base_url = os.getenv("OPENAI_API_BASE_URL")
+        base_url = os.getenv("BASE_URL")
         if not api_key:
             raise ValueError("OpenAI API key is required")
         self.model = model
         self.client = OpenAI(api_key=api_key, base_url=base_url)
 
-    def generate(self, messages: List[Dict[str, Any]], available_tools: List[Dict[str, Any]]) -> Dict[str, Any]:
-        open_ai_msg = []
-        for message in messages:
-            print(f"Message: role={message['role']}, content={message.get('content', '')}")
-            role = message['role']
-            content = message['content']
-            if role == "system":
-                open_ai_msg.append({"role": "system", "content": content})
+    def _message_to_openai(self, message: Message) -> dict[str, Any]:
+        if message.role == Role.SYSTEM:
+            return {"role": "system", "content": message.content or ""}
 
-            # 如果role的角色是user,
-            elif role == "user":
-                msg_param = {"role": "user", "content": content}
-                if message.get("tool_call_id"):
-                    msg_param["role"] = "tool_call"
-                    msg_param["tool_call_id"] = message["tool_call_id"]
-                open_ai_msg.append(msg_param)
+        if message.role == Role.USER:
+            return {"role": "user", "content": message.content or ""}
 
-            # 如果role的角色是assistant, 需要判断是否包含工具调用，如果包含工具调用，则需要将工具调用的信息也转换成OpenAI API能够理解的格式
-            elif role == "assistant":
-                ast_param = {"role": "assistant", "content": content}
-                tool_calls = message.get("tool_calls")
-                if tool_calls:
-                    ast_param["tool_calls"] = [
-                        {
-                            "id": tc["tool_call_id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc["tool_call_name"],
-                                "arguments": tc["tool_call_arguments"],
-                            }
-                        } for tc in tool_calls
-                    ]
-                open_ai_msg.append(ast_param)
+        if message.role == Role.TOOL:
+            if not message.tool_call_id:
+                raise ValueError("Tool message requires tool_call_id")
+            return {
+                "role": "tool",
+                "tool_call_id": message.tool_call_id,
+                "content": message.content or "",
+            }
 
-        open_ai_tools = []
-        if available_tools:
-            for tool_def in available_tools:
-                open_ai_tools.append({
+        assistant_msg: dict[str, Any] = {
+            "role": "assistant",
+            "content": message.content or "",
+        }
+        if message.tool_calls:
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tool_call.id,
                     "type": "function",
                     "function": {
-                        "name": tool_def["name"],
-                        "description": tool_def["description"],
-                        "parameters": tool_def["input_schema"]
+                        "name": tool_call.name,
+                        "arguments": tool_call.arguments
+                        if isinstance(tool_call.arguments, str)
+                        else json.dumps(tool_call.arguments, ensure_ascii=False),
+                    },
+                }
+                for tool_call in message.tool_calls
+            ]
+        return assistant_msg
+
+    def _tools_to_openai(self, available_tools: Optional[List[ToolDefinition]]) -> list[dict[str, Any]]:
+        open_ai_tools: list[dict[str, Any]] = []
+        if available_tools:
+            for tool_def in available_tools:
+                open_ai_tools.append(
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool_def.name,
+                            "description": tool_def.description,
+                            "parameters": tool_def.input_schema,
+                        },
                     }
-                })
+                )
+        return open_ai_tools
+
+    def generate(self, messages: List[Message], available_tools: Optional[List[ToolDefinition]]) -> Message:
+        open_ai_msg = [self._message_to_openai(message) for message in messages]
         kwargs = {
             "model": self.model,
             "messages": open_ai_msg,
         }
+        open_ai_tools = self._tools_to_openai(available_tools)
         if open_ai_tools:
             kwargs["tools"] = open_ai_tools
-        print(f"OpenAI API Request: {kwargs}")
         try:
             response = self.client.chat.completions.create(**kwargs)
         except Exception as e:
             raise RuntimeError(f"OpenAI API Error: {e}")
-        print(f"OpenAI API Response: {response}")
         if not response.choices:
             raise RuntimeError(f"OpenAI API Error: {response}")
 
-        # 把open ai的返回结果转换成schema的格式返回回去
-        response_content = response.choices[0].message
-        result_msg = {
-            "role": Role.ASSISTANT,
-            "content": response_content,
-            "tool_calls": []
-        }
-        if response_content.tool_calls:
-            for msg_tool in response_content.tool_calls:
-                if msg_tool["type"] == "function":
-                    result_msg["tool_calls"].append({
-                        "id": msg_tool["tool_call_id"],
-                        "name" : msg_tool["name"],
-                        "arguments" : msg_tool["arguments"],
-                    })
-        # 最后返回给调用方的结果应该是一个符合我们Message schema格式的字典
-        return result_msg
+        response_message = response.choices[0].message
+
+        print("===="*10)
+        print(f"OpenAI API Response: {response_message}")
+        print("===="*10)
 
 
+        tool_calls: list[ToolCall] = []
+        if response_message.tool_calls:
+            for msg_tool in response_message.tool_calls:
+                if msg_tool.type != "function":
+                    continue
+                raw_arguments = msg_tool.function.arguments
+                try:
+                    arguments: Any = json.loads(raw_arguments)
+                except (TypeError, json.JSONDecodeError):
+                    arguments = raw_arguments
+                tool_calls.append(
+                    ToolCall(
+                        id=msg_tool.id,
+                        name=msg_tool.function.name,
+                        arguments=arguments,
+                    )
+                )
+
+        return Message(
+            role=Role.ASSISTANT,
+            content=response_message.content,
+            tool_calls=tool_calls or None,
+        )
