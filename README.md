@@ -223,3 +223,4 @@ sequenceDiagram
     P->>M: 把 tool_call_id="call_123" 的 tool 消息发回模型
 
 ```
+![img.png](img.png)
