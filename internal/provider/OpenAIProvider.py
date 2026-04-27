@@ -1,31 +1,3 @@
-# class MockLLMProvider:
-#     """模拟大模型的回复"""
-#     def __init__(self):
-#         self.counter = 0
-#     def generate(self, messages, tool_definitions):
-#
-#         # 如果工具列表的值为空，那么开始的是第一阶段Phase1 Thinking阶段内容
-#         if not tool_definitions:
-#             return Message(
-#                 role=Role.ASSISTANT,
-#                 content="【推理中】目标是检查文件，我不能盲猜，我需要调用bash工具执行ls的命令"
-#             )
-#
-#         self.counter += 1
-#         if self.counter == 1:
-#             return Message(
-#                 role=Role.ASSISTANT,
-#                 content="我需要调用 bash 工具来查看当前目录下的文件列表。",
-#                 tool_calls=[{
-#                     "id": "call-1",
-#                     "name": "bash",
-#                     "arguments": {"command": "ls -la"}
-#                 }]
-#             )
-#         return Message(
-#             role=Role.ASSISTANT,
-#             content="我看到内容啦，执行成功 "
-#         )
 
 """
 我们在上一步中操作了一个非常简单的 MockLLMProvider 来模拟大模型的回复，但在实际应用中，我们需要一个真正能够与 OpenAI API 进行交互的 Provider 来替换它。

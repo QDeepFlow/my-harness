@@ -1,12 +1,12 @@
 import logging
 import os
 import sys
-from idlelib.window import registry
 from pathlib import Path
 
 from dotenv import load_dotenv
 from internal.tools.InMemoryRegistry import InMemoryRegistry
 from internal.tools.get_weather import GetWeatherTool
+from internal.tools.read_file import ReadFileTool
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
@@ -61,7 +61,8 @@ def main():
 
     tool_registry = InMemoryRegistry(
         tools=[
-            GetWeatherTool()
+            GetWeatherTool(),
+            ReadFileTool(os.getcwd()),
         ]
     )
     agent_engine = AgentEngine(
@@ -72,7 +73,7 @@ def main():
     )
 
     try:
-        error_response = agent_engine.run("帮我看下北京的天气如何？")
+        error_response = agent_engine.run("帮我看下这个目录下有什么文件呢？")
         if error_response:
             logging.error(f"引擎崩溃 {error_response}")
     except Exception as e:

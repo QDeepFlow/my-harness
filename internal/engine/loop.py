@@ -4,11 +4,6 @@ from typing import List, Optional
 from internal.provider.base import LLMProvider
 from internal.schema.message import Message, Role
 
-# 假设之前的代码分别保存在对应的模块中
-# from provider import LLMProvider
-# from schema import Message, Role, ToolCall
-# from tools import Registry
-
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger("Engine")

@@ -187,3 +187,39 @@ logger.info("Engine started")
 
 **当前版本：0.1.0**  
 **Python 要求：>= 3.14**
+
+
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant E as AgentEngine
+    participant P as Provider
+    participant M as Model
+    participant R as ToolRegistry
+    participant T as Tool
+
+    U->>E: 用户问题
+    E->>P: generate(messages, tools)
+    P->>M: 发送上下文和工具定义
+
+    M-->>P: assistant message + tool_calls
+    Note over M,P: 例如 tool_call.id = "call_123"
+
+    P-->>E: Message(tool_calls=[ToolCall(id="call_123", name="get_weather", arguments={...})])
+
+    E->>R: execute(tool_call)
+    Note over E,R: 这里传入的是 ToolCall(id="call_123", ...)
+
+    R->>T: execute(tool_call)
+    T-->>R: ToolResult(tool_call_id="call_123", output="...")
+
+    R-->>E: ToolResult(tool_call_id="call_123", output="...")
+
+    E->>E: 封装 observation message
+    Note over E: Message(role="tool", tool_call_id="call_123", content="...")
+
+    E->>P: generate(updated_messages, tools)
+    P->>M: 把 tool_call_id="call_123" 的 tool 消息发回模型
+
+```
