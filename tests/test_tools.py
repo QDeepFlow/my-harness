@@ -7,6 +7,7 @@ from internal.tools.InMemoryRegistry import InMemoryRegistry
 from internal.tools.get_weather import GetWeatherTool
 from internal.tools.read_file import ReadFileTool
 from internal.tools.write_file import WriteFileTool
+from internal.tools.bash import BashTool
 
 
 class ToolTests(unittest.TestCase):
@@ -207,6 +208,89 @@ class ToolTests(unittest.TestCase):
 
         self.assertTrue(result.is_error)
         self.assertIn("content", result.output)
+
+
+    def test_bash_tool_executes_command(self) -> None:
+        tool = BashTool("/tmp")
+
+        result = tool.execute(
+            ToolCall(
+                id="call-11",
+                name="bash",
+                arguments={"command": "echo hello"},
+            )
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertIn("hello", result.output)
+
+    def test_bash_tool_captures_stderr(self) -> None:
+        tool = BashTool("/tmp")
+
+        result = tool.execute(
+            ToolCall(
+                id="call-12",
+                name="bash",
+                arguments={"command": "echo err >&2"},
+            )
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertIn("err", result.output)
+
+    def test_bash_tool_missing_command(self) -> None:
+        tool = BashTool("/tmp")
+
+        result = tool.execute(
+            ToolCall(id="call-13", name="bash", arguments={})
+        )
+
+        self.assertTrue(result.is_error)
+        self.assertIn("command", result.output)
+
+    def test_bash_tool_failed_command(self) -> None:
+        tool = BashTool("/tmp")
+
+        result = tool.execute(
+            ToolCall(
+                id="call-14",
+                name="bash",
+                arguments={"command": "ls /nonexistent_path_xyz"},
+            )
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertIn("exit code", result.output)
+
+    def test_bash_tool_empty_output(self) -> None:
+        tool = BashTool("/tmp")
+
+        result = tool.execute(
+            ToolCall(
+                id="call-15",
+                name="bash",
+                arguments={"command": "true"},
+            )
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertIn("无终端输出", result.output)
+
+    def test_bash_tool_truncates_long_output(self) -> None:
+        tool = BashTool("/tmp")
+        big_str = "x" * 9000
+
+        result = tool.execute(
+            ToolCall(
+                id="call-16",
+                name="bash",
+                arguments={"command": f"printf '%s' '{big_str}'"},
+            )
+        )
+
+        self.assertFalse(result.is_error)
+        self.assertIn("截断", result.output)
+        self.assertLessEqual(len(result.output), 9000)
 
 
 if __name__ == "__main__":

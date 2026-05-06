@@ -45,7 +45,7 @@ def main():
     )
 
     try:
-        error_response = agent_engine.run("请在当前目录下创建一个hello.txt文件，内容是Hello, Tiny Claw!")
+        error_response = agent_engine.run(user_prompt="接下来执行这几个步骤：1.使用bash命令查看下当前的python的版本 2. 然后创建一个hello world的python文件 3. 运行这个文件，保证没有问题")
         if error_response:
             logging.error(f"引擎崩溃 {error_response}")
     except Exception as e:
