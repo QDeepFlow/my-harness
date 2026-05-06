@@ -18,19 +18,28 @@ my-harness/
 │   └── claw/
 │       └── main.py              # 应用入口
 ├── internal/
-│   ├── context/                 # 上下文管理
 │   ├── engine/
-│   │   └── loop.py             # Agent 核心引擎 (ReAct 循环)
-│   ├── provider/                # LLM 提供商接口
+│   │   └── loop.py              # Agent 核心引擎 (ReAct 循环)
+│   ├── provider/
+│   │   ├── base.py              # LLMProvider 抽象接口
+│   │   ├── MockProvider.py      # Mock 提供商（测试用）
+│   │   └── OpenAIProvider.py    # OpenAI API 提供商
 │   ├── schema/
-│   │   └── message.py          # 消息类型定义
+│   │   └── message.py           # 消息类型定义 (Role, Message, ToolCall, ToolResult, ToolDefinition)
 │   ├── tools/
-│   │   └── registry.py         # 工具注册与执行
-│   ├── memory/                  # 记忆管理
-│   ├── feishu/                  # 飞书集成
+│   │   ├── bsae_tool.py         # BaseTool 抽象基类
+│   │   ├── registry.py          # ToolRegistry 抽象接口
+│   │   ├── InMemoryRegistry.py  # 内存工具注册中心
+│   │   ├── bash.py              # Bash 命令执行工具
+│   │   ├── read_file.py         # 文件读取工具
+│   │   ├── write_file.py        # 文件写入工具
+│   │   └── get_weather.py       # 天气查询工具（演示用）
 │   └── logger.py                # 日志配置
+├── tests/
+│   ├── test_engine.py           # 引擎集成测试
+│   └── test_tools.py            # 工具单元测试
 ├── pyproject.toml               # 项目配置
-└── README.md                     # 本文件
+└── README.md                    # 本文件
 ```
 
 ## 🚀 快速开始
@@ -57,18 +66,17 @@ pip install -e .
 `AgentEngine` 实现了标准的 ReAct 循环：
 
 ```
-Loop:
-  1. 思考 (Reasoning)
-     └─ 调用 LLM 进行推理
-  
-  2. 决策
-     └─ 检查是否需要调用工具
-  
-  3. 执行 (Action)
-     └─ 通过 ToolRegistry 执行工具
-  
-  4. 观察 (Observation)
-     └─ 将结果追加到上下文，继续循环
+Turn 1:
+  1a. [可选] Reasoning (Thinking Phase)
+      └─ 不挂载工具，让模型先进行纯文本推理
+  1b. Action (Phase 2)
+      └─ 挂载工具，模型决策并调用工具
+  1c. Observation
+      └─ 工具结果封装为 Tool Message，追加到上下文
+
+Turn 2, 3, ...:
+  2a. 模型携带 Observation 继续推理
+  2b. 再次决策 → 调用工具 或 宣告任务完成
 ```
 
 ### 消息协议 (Message Schema)
@@ -81,24 +89,18 @@ class Message(BaseModel):
     tool_call_id: Optional[str]     # 工具调用ID（响应时）
 ```
 
-### 工具系统 (ToolRegistry)
+### 工具系统 (InMemoryRegistry)
 
 ```python
-class ToolRegistry(ABC):
-    @abstractmethod
+class InMemoryRegistry(ToolRegistry):
+    def __init__(self, tools: List[BaseTool]):
+        # 注册工具，key 为 tool_definiton().name
+
     def get_available_tools(self) -> List[ToolDefinition]:
-        """返回所有可用工具定义"""
-        pass
-    
-    @abstractmethod
+        """返回所有已挂载的工具 Schema"""
+
     def execute(self, tool_call: ToolCall) -> ToolResult:
-        """执行单个工具调用"""
-        pass
-    
-    @abstractmethod
-    async def execute_async(self, tool_call: ToolCall) -> ToolResult:
-        """异步执行工具（支持并行）"""
-        pass
+        """根据 tool_call.name 路由到对应工具执行"""
 ```
 
 ## 🔄 工具并行执行
@@ -196,30 +198,39 @@ sequenceDiagram
     participant E as AgentEngine
     participant P as Provider
     participant M as Model
-    participant R as ToolRegistry
+    participant R as InMemoryRegistry
     participant T as Tool
 
-    U->>E: 用户问题
-    E->>P: generate(messages, tools)
-    P->>M: 发送上下文和工具定义
+    U->>E: run(user_prompt)
+    Note over E: 初始化 context_history<br/>[system, user]
 
-    M-->>P: assistant message + tool_calls
-    Note over M,P: 例如 tool_call.id = "call_123"
+    loop ReAct 循环 (Turn 1, 2, ...)
+        E->>R: get_available_tools()
+        R-->>E: [ToolDefinition, ...]
 
-    P-->>E: Message(tool_calls=[ToolCall(id="call_123", name="get_weather", arguments={...})])
+        opt Thinking Phase (仅 Turn 1 且 enable_thinking=True)
+            E->>P: generate(messages, tools=None)
+            P->>M: 发送上下文（不挂载工具）
+            M-->>P: 纯文本推理
+            P-->>E: Message(content="推理文本")
+            Note over E: 存入 reasoning_history
+        end
 
-    E->>R: execute(tool_call)
-    Note over E,R: 这里传入的是 ToolCall(id="call_123", ...)
+        E->>P: generate(messages, tools, reasoning_history)
+        P->>M: 发送上下文 + 工具定义
+        M-->>P: assistant message + tool_calls
+        P-->>E: Message(tool_calls=[ToolCall(id="call_123", name="bash", ...)])
 
-    R->>T: execute(tool_call)
-    T-->>R: ToolResult(tool_call_id="call_123", output="...")
-
-    R-->>E: ToolResult(tool_call_id="call_123", output="...")
-
-    E->>E: 封装 observation message
-    Note over E: Message(role="tool", tool_call_id="call_123", content="...")
-
-    E->>P: generate(updated_messages, tools)
-    P->>M: 把 tool_call_id="call_123" 的 tool 消息发回模型
-
+        alt 无 tool_calls
+            Note over E: 任务宣告完成，退出循环
+        else 有 tool_calls
+            loop 每个 tool_call
+                E->>R: execute(tool_call)
+                R->>T: execute(tool_call)
+                T-->>R: ToolResult(tool_call_id="call_123", output="...")
+                R-->>E: ToolResult(tool_call_id="call_123", output="...")
+                Note over E: 封装 observation<br/>Message(role=TOOL, tool_call_id="call_123")
+            end
+        end
+    end
 ```
