@@ -22,8 +22,15 @@ class ReadFileTool(BaseTool):
                         "type": "string",
                         "description": "读取文件路径，比如是cmd/claw/main.py的路径信息"
                     },
-                }
-                ,
+                    "offset": {
+                        "type": "integer",
+                        "description": "起始行号（从0开始），默认0"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "最多读取的行数，默认2000，超出自动截断"
+                    },
+                },
                 "required": ["path"]
             }
         )
@@ -78,8 +85,43 @@ class ReadFileTool(BaseTool):
                 is_error=True,
             )
 
+        all_lines = content.splitlines()
+        original_total = len(all_lines)
+        max_lines = 2000
+
+        offset = tool_call.arguments.get("offset", 0)
+        raw_limit = tool_call.arguments.get("limit", max_lines)
+        user_set_limit = "limit" in tool_call.arguments
+
+        if offset >= original_total:
+            return ToolResult(
+                tool_call_id=tool_call.id,
+                output=f"offset {offset} 超出文件总行数 {original_total}",
+                is_error=True,
+            )
+
+        all_lines = all_lines[offset:]
+        remaining = len(all_lines)
+        limit = min(raw_limit, max_lines)
+
+        if limit < remaining:
+            all_lines = all_lines[:limit]
+            shown = limit
+            truncated = not user_set_limit
+        elif remaining > max_lines:
+            all_lines = all_lines[:max_lines]
+            shown = max_lines
+            truncated = True
+        else:
+            shown = remaining
+            truncated = False
+
+        output = "\n".join(all_lines)
+        if truncated:
+            output += f"\n\n... [截断] 显示 {shown}/{original_total} 行，使用 offset/limit 参数读取其余部分。"
+
         return ToolResult(
             tool_call_id=tool_call.id,
-            output=content,
+            output=output,
             is_error=False,
         )

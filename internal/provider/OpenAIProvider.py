@@ -1,4 +1,3 @@
-
 """
 我们在上一步中操作了一个非常简单的 MockLLMProvider 来模拟大模型的回复，但在实际应用中，我们需要一个真正能够与 OpenAI API 进行交互的 Provider 来替换它。
 我们采用是在schema中的定义的Message对象作为我们和大模型交互的统一标准，OpenAIProvider的核心职责就是将这个Message对象转换成OpenAI API能够理解的格式，并且将OpenAI API的回复转换回Message对象。
@@ -125,11 +124,6 @@ class OpenAIProvider(LLMProvider):
             raise RuntimeError(f"OpenAI API Error: {response}")
 
         response_message = response.choices[0].message
-
-        print("===="*10)
-        print(f"OpenAI API Response: {response_message}")
-        print("===="*10)
-
 
         tool_calls: list[ToolCall] = []
         if response_message.tool_calls:

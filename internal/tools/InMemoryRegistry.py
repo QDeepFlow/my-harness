@@ -1,4 +1,4 @@
-from typing import Any, List, Dict
+from typing import List, Dict
 
 from internal.schema.message import ToolCall, ToolResult, ToolDefinition
 from internal.tools.bsae_tool import BaseTool
@@ -14,7 +14,6 @@ class InMemoryRegistry(ToolRegistry):
 
     def get_available_tools(self) -> List[ToolDefinition]:
 
-        print(f"get available tools: {self._tools}")
         return [ tool.tool_definiton() for tool in self._tools.values() ]
 
     def execute(self, tool_call: ToolCall) -> ToolResult:
